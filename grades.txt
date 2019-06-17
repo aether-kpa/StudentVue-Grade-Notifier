@@ -1,0 +1,6 @@
+{'grade': '(102.7%)', 'Q vocab/grammar 1:2': True, 'Los reflexivos- translations': True}
+{'grade': 'lol', 'Civil Libs and Rights Unit Test': True, 'Landmark Court Case Quiz': True, 'federalism Bake off': True}
+{'grade': 'lol', 'HW #11.25': True, 'HW #11': True, 'HW #10': True, 'HW #10.5': True}
+{'grade': 'lol', 'Test #4 (Raw score)': True, 'Vocab. List #4': True, '"Cast your Spell"': True, 'Macbeth--Act 4 quiz': True, 'Macbeth--Act 3 quiz': True, 'Macbeth--Act 2 quiz': True, 'Macbeth close read': True, 'Macbeth--Act 1 quiz': True}
+{'grade': '0.0'}
+{'grade': 'lol', '4.5': True, '4.4': True, '4.1-4.3 Quiz': True}
