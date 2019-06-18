@@ -1,0 +1,6 @@
+__pycache__
+.idea/*
+grades.py
+Notifier.py
+data.json
+constants.py
