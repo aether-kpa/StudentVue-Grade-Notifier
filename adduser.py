@@ -2,10 +2,12 @@
 from requests import Session
 from smtplib import SMTP
 from bs4 import BeautifulSoup
-import constants
-import modules
+from constants import *
+from modules import *
+import json
 
-def main(name):
+
+def main():
 
     '''
     username = input("StudentVue Username:")
@@ -17,14 +19,15 @@ def main(name):
     password = "rcska6046"
     email = "karanarora2001@gmail.com"
 
-    values = {
-              "username": username,
-              "password": password}
+    student = Student(username, password, email)
+    student.updateGrades()
 
-    session = Session()
-    session.post(constants.URL, data=values)
+    '''file = open("data.json", "w")
+
+    json.dump(record.__dict__, file)'''
 
 
+main()
 
 
 
