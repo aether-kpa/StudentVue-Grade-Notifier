@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup, ResultSet
 from smtplib import SMTP
 from constants import *
 
+
 class Assignment:
 
     def __init__(self, name: str, score: tuple, graded: bool):
@@ -11,17 +12,30 @@ class Assignment:
         self.name = name
         self.score = score
         self.graded = graded
+        self.percentage = self.calculatePercent()
 
-        if score[1] == 0:
-            self.score = "+" + str(score[0]) + " (EC)"
-            self.percentage = ""
-        else:
-            self.percentage = float(score[0] / score[1]) * 100
+    def calculatePercent(self) -> str:
+
+        percentage = ""
+
+        if self.graded:
+            numerator = float(self.score.split("/")[0])
+            denominator = float(self.score.split("/")[1])
+
+            if denominator == 0:
+                self.score = "+" + str(numerator) + " (EC)"
+                percentage = ""
+            else:
+                percentage = str((numerator/denominator) * 100)
+
+            percentage = percentage[0:6]
+
+        return percentage
 
 
 class Class:
 
-    def __init__(self, name: str, url: str, grade):
+    def __init__(self, name: str, url: str):
 
         self.name = name
         self.url = url
@@ -58,7 +72,6 @@ class Class:
 
         # Go to class page
         page = session.get("https://rcsvue.rochester.k12.mi.us/" + self.url)
-        print("https://rcsvue.rochester.k12.mi.us/" + self.url)
         html = BeautifulSoup(str(page.content), features="html.parser")
 
         # Get all of the rows of grades
@@ -82,8 +95,16 @@ class Class:
             # Mark assignment ungraded if it has the word "possible" in it
             graded = True
 
-            if "Possible" in points:
-                graded = False
+            # Added try statement because if score box is left blank that shifts the number of <a> tags to the left one
+            try:
+                if "Possible" in points:
+                    graded = False
+
+            except TypeError:
+                points = a_tag_list[5].string
+
+                if "Possible" in points:
+                    graded = False
 
             assignment = Assignment(name, points, graded)
 
@@ -97,7 +118,7 @@ class Class:
 
         return message
 
-    #Check if assignment's name already exists in data
+    # Check if assignment's name already exists in data
     def assignmentNameInList(self, assignment: Assignment) -> bool:
 
         for homework in self.assignments:
@@ -128,7 +149,7 @@ class Class:
 
         return False
 
-    # Overcall class grade of student
+    # Update overall class grade of student
     def updateOverallGrade(self, html: BeautifulSoup, multiple: int):
 
         # Finds letter grade in class
@@ -155,9 +176,7 @@ class Student:
         self.classes = []
         self.session = Session()
         self.message = Message()
-
-        self.login()
-        self.getClasses()
+        self.message_data = {}
 
     # Login to StudentVue
     def login(self):
@@ -201,67 +220,48 @@ class Student:
     def updateAssignments(self):
 
         for course in self.classes:
-            self.message.data.update(course.getAssignments(self.session))
+            self.message_data.update(course.getAssignments(self.session))
+
+    def constructMessage(self):
+
+        self.message.constructMessage(self.message_data, self.classes)
+
+    def sendEmail(self, message: str, subject="Grade Update"):
+
+        self.message.sendEmail(message, self.email, subject)
 
 
 class Message:
 
     def __init__(self):
 
-        self.data = {}
+        self.text = ""
 
-    def constructMessage(self):
+    def constructMessage(self, data: dict, classes: list):
 
-        text = ""
+        self.text += "Your grades have been updated Karan Arora! \n \n"
 
-        for course, assignment in self.data.items():
-            if course not in text:
+        for course, assignment in data.items():
+            if course not in self.text:
+                if self.classNamesInMessage(classes):
+                    self.text += "\n \n"
 
+                self.text += course + "(" + course.old_grade + "to" + course.grade + "):"
+                self.text += "\n" + assignment + ": " + assignment.score
 
+                if assignment.percentage != "":
+                    self.text += "(" + assignment.percentage + "%)"
 
-                        # If the class's name has not been added
-                        if key not in message:
+    # Checks if any class names are in the message for formatting purposes
+    def classNamesInMessage(self, classes: list) -> bool:
 
-                            # Finds letter grade in class
-                            rows = html.find_all("tr", {"class": "row_subhdr"})
-
-                            # If class has extra altrows remove those
-                            if multiple:
-                                rows = rows[multiple:]
-
-                            string = str(rows[-1])
-                            overall_grade = string[string.find("("):string.find(")") + 1]
-                            old_grade = currentgrades["grade"]
-
-                            tracker.update({"grade": overall_grade})
-
-                            # Checks if the message already contains information (for formatting purposes)
-                            if classnames_in_message(classes, message):
-                                message += "\n \n"
-
-                            message += key + " " + old_grade + " to " + overall_grade + ":"
-
-                        # Calculate percentage grade on assignment
-                        try:
-                            percent = (float(points.split("/")[0])) / (float(points.split("/")[1])) * 100
-                        except ZeroDivisionError:
-                            pass
-                        percent = str(percent)[0:6]
-                        message += "\n" + name + ": " + points + " (" + percent + "%)"
-
-                except KeyError:
-                    pass
-
-                # Update assignment dict
-                tracker.update({name: graded})
-                # print(tracker)
-
-            # Update the text that is to be written to grades.txt with the new information from tracker
-            write += str(tracker) + "\n"
+        for course in classes:
+            if course.name in self.text:
+                return True
+        return False
 
     # Connects to SMTP server and sends email
-    def sendEmail(self, message, subject="Grade Update"):
-        message = "Your grades have been updated Karan Arora! \n \n" + message
+    def sendEmail(self, message: str, email: str, subject: str):
 
         server = SMTP("smtp.gmail.com", 587)
         server.connect("smtp.gmail.com", 587)
@@ -272,8 +272,5 @@ class Message:
 
         message = 'Subject: {}\n\n{}'.format(subject, message)
 
-        server.sendmail(SENDER_USERNAME, self.email, message)
+        server.sendmail(SENDER_USERNAME, email, message)
         server.quit()
-
-    def sendWelcome(self):
-        pass
