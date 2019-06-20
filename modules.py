@@ -82,6 +82,7 @@ class Student:
 
         self.message.sendEmail(message, self.email, subject)
 
+
 class Assignment:
 
     def __init__(self, name: str, score: tuple):
