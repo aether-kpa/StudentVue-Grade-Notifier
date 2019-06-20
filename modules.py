@@ -3,6 +3,8 @@ from requests import Session
 from bs4 import BeautifulSoup, ResultSet
 from smtplib import SMTP
 from constants import *
+#import psutil
+import ujson
 
 
 class Assignment:
@@ -39,9 +41,10 @@ class Class:
 
         self.name = name
         self.url = url
-        self.grade = 0
-        self.old_grade = 0
+        self.grade = "0%"
+        self.old_grade = "0%"
         self.assignments = []
+        self.message = []
 
     # Removes extra altrows due to some classes weighing homework and tests differently
     @staticmethod
@@ -66,9 +69,7 @@ class Class:
         return rows, multiple
 
     # Get all assignments for a class
-    def getAssignments(self, session: Session) -> dict:
-
-        message = {}
+    def getAssignments(self, session: Session):
 
         # Go to class page
         page = session.get("https://rcsvue.rochester.k12.mi.us/" + self.url)
@@ -83,7 +84,7 @@ class Class:
         # If there are no assignments posted go to the next class
         if "There are no assignments" in str(rows[0]):
             self.grade = 0.0
-            return message
+            return
 
         # Grabs the name and point value from each grade block
         for grade_block in rows:
@@ -108,15 +109,15 @@ class Class:
 
             assignment = Assignment(name, points, graded)
 
+            # If the assignment is new, add it to the list of things being returned
             if self.newAssignment(assignment):
-                message.update({self.name: assignment})
+                self.message.append(assignment)
 
-            self.assignments.append(Assignment(name, points, graded))
+            # Add assignment to own list no matter what
+            self.assignments.append(assignment)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
-
-        return message
 
     # Check if assignment's name already exists in data
     def assignmentNameInList(self, assignment: Assignment) -> bool:
@@ -163,6 +164,7 @@ class Class:
 
         self.old_grade = self.grade
         self.grade = string[string.find("("):string.find(")") + 1]
+        self.grade = self.grade.replace("(", "").replace(")", "")
 
 
 class Student:
@@ -176,7 +178,6 @@ class Student:
         self.classes = []
         self.session = Session()
         self.message = Message()
-        self.message_data = {}
 
     # Login to StudentVue
     def login(self):
@@ -220,11 +221,11 @@ class Student:
     def updateAssignments(self):
 
         for course in self.classes:
-            self.message_data.update(course.getAssignments(self.session))
+            course.getAssignments(self.session)
 
     def constructMessage(self):
 
-        self.message.constructMessage(self.message_data, self.classes)
+        self.message.constructMessage(self.classes)
 
     def sendEmail(self, message: str, subject="Grade Update"):
 
@@ -237,20 +238,22 @@ class Message:
 
         self.text = ""
 
-    def constructMessage(self, data: dict, classes: list):
+    def constructMessage(self, classes: list):
 
         self.text += "Your grades have been updated Karan Arora! \n \n"
 
-        for course, assignment in data.items():
-            if course not in self.text:
-                if self.classNamesInMessage(classes):
-                    self.text += "\n \n"
+        for course in classes:
+            for assignment in course.message:
+                if course.name not in self.text:
+                    if self.classNamesInMessage(classes):
+                        self.text += "\n \n \n"
 
-                self.text += course + "(" + course.old_grade + "to" + course.grade + "):"
-                self.text += "\n" + assignment + ": " + assignment.score
+                    self.text += course.name + " (" + str(course.old_grade) + " to " + str(course.grade) + "): \n"
+
+                self.text += "\n" + assignment.name + ": " + assignment.score
 
                 if assignment.percentage != "":
-                    self.text += "(" + assignment.percentage + "%)"
+                    self.text += " (" + assignment.percentage + "%)"
 
     # Checks if any class names are in the message for formatting purposes
     def classNamesInMessage(self, classes: list) -> bool:
@@ -262,6 +265,11 @@ class Message:
 
     # Connects to SMTP server and sends email
     def sendEmail(self, message: str, email: str, subject: str):
+
+        #print(message)
+
+        #print(psutil.cpu_percent())
+        #print(psutil.virtual_memory())
 
         server = SMTP("smtp.gmail.com", 587)
         server.connect("smtp.gmail.com", 587)

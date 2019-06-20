@@ -1,7 +1,5 @@
 
 from requests import Session
-from smtplib import SMTP
-from bs4 import BeautifulSoup
 from constants import *
 from modules import *
 import json
