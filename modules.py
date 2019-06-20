@@ -9,6 +9,8 @@ import ujson
 
 class Student:
 
+    '''Default values for some arguments are included because they are updated by the object when a new user is created,
+       but then filled in during the deserialization process.'''
     def __init__(self, username: str, password: str, email: str, name="placeholder", classes=[]):
 
         self.name = name
@@ -36,7 +38,12 @@ class Student:
 
     # Get student's name
     def getName(self):
-        pass
+
+        page = self.session.get("https://rcsvue.rochester.k12.mi.us/Home_PXP.aspx")
+        soup = BeautifulSoup(str(page.content), features="html.parser")
+        text = soup.find("td", {"class": "UserHead"})
+        name = text.string.replace("Good evening", "").replace(",", "")
+        self.name = name
 
     # Used for new students: get the names and links of all classes
     def getClasses(self):
