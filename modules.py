@@ -11,18 +11,20 @@ class Student:
 
     '''Default values for some arguments are included because they are updated by the object when a new user is created,
        but then filled in during the deserialization process.'''
-    def __init__(self, username: str, password: str, email: str, name="placeholder", classes=[]):
+    def __init__(self, username: str, password: str, email: str, url: str, name="placeholder", classes=[]):
 
-        self.name = name
         self.username = username
         self.password = password
         self.email = email
+        self.url = url[:url.find("Login")]
+        self.name = name
         self.classes = classes
+
         self.session = Session()
         self.message = Message()
 
     # Login to StudentVue
-    def login(self):
+    def login(self) -> None:
 
         values = {
             "username": self.username,
@@ -34,21 +36,23 @@ class Student:
                                  "AYV3U="
         }
 
-        self.session.post(URL, data=values)
+        self.session.post(self.url + "Login_Student_PXP.aspx", data=values)
 
     # Get student's name
-    def getName(self):
+    def getName(self) -> None:
 
-        page = self.session.get("https://rcsvue.rochester.k12.mi.us/Home_PXP.aspx")
+        page = self.session.get(self.url + "Home_PXP.aspx")
         soup = BeautifulSoup(str(page.content), features="html.parser")
         text = soup.find("td", {"class": "UserHead"})
-        name = text.string.replace("Good evening", "").replace(",", "")
+        name = text.string.split(" ")
+        name = name[2] + " " + name[3]
+        name = name.replace(",", "")
         self.name = name
 
     # Used for new students: get the names and links of all classes
-    def getClasses(self):
+    def getClasses(self) -> None:
 
-        page = self.session.get("https://rcsvue.rochester.k12.mi.us/PXP_Gradebook.aspx?AGU=0")
+        page = self.session.get(self.url + "PXP_Gradebook.aspx?AGU=0")
         soup = BeautifulSoup(str(page.content), features="html.parser")
         rows = soup.find_all("tr", {"class": ["altrow1", "altrow2"]})
 
@@ -69,16 +73,16 @@ class Student:
             self.classes.append(Class(name, link))
 
     # Update all grades for student
-    def updateAssignments(self):
+    def updateAssignments(self) -> None:
 
         for course in self.classes:
-            course.getAssignments(self.session)
+            course.getAssignments(self.session, self.url)
 
-    def constructMessage(self):
+    def constructMessage(self) -> None:
 
         self.message.constructMessage(self.classes, self.name)
 
-    def sendEmail(self, message: str, subject="Grade Update"):
+    def sendEmail(self, message: str, subject="Grade Update") -> None:
 
         self.message.sendEmail(message, self.email, subject)
 
@@ -110,12 +114,12 @@ class Assignment:
 
 class Class:
 
-    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", ):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%"):
 
         self.name = name
         self.url = url
-        self.grade = "0%"
-        self.old_grade = "0%"
+        self.grade = grade
+        self.old_grade = old_grade
         self.assignments = []
         self.message = []
 
@@ -142,10 +146,10 @@ class Class:
         return rows, multiple
 
     # Get all assignments for a class
-    def getAssignments(self, session: Session):
+    def getAssignments(self, session: Session, site_url: str) -> None:
 
         # Go to class page
-        page = session.get("https://rcsvue.rochester.k12.mi.us/" + self.url)
+        page = session.get(site_url + self.url)
         html = BeautifulSoup(str(page.content), features="html.parser")
 
         # Get all of the rows of grades
@@ -201,7 +205,7 @@ class Class:
 
 
     # Update overall class grade of student
-    def updateOverallGrade(self, html: BeautifulSoup, multiple: int):
+    def updateOverallGrade(self, html: BeautifulSoup, multiple: int) -> None:
 
         # Finds letter grade in class
         rows = html.find_all("tr", {"class": "row_subhdr"})
@@ -216,6 +220,37 @@ class Class:
         self.grade = string[string.find("("):string.find(")") + 1]
         self.grade = self.grade.replace("(", "").replace(")", "")
 
+    # Find letter grade in class
+    def letterGrade(self) -> str:
+
+        letter_grade = ""
+        grade = float(self.grade.replace("%", ""))
+
+        if grade >= 92.5:
+            letter_grade = "A"
+        elif grade >= 89.5:
+            letter_grade = "A-"
+        elif grade >= 86.5:
+            letter_grade = "B+"
+        elif grade >= 82.5:
+            letter_grade = "B"
+        elif grade >= 79.5:
+            letter_grade = "B-"
+        elif grade >= 76.5:
+            letter_grade = "C+"
+        elif grade >= 72.5:
+            letter_grade = "C"
+        elif grade >= 66.5:
+            letter_grade = "D+"
+        elif grade >= 62.5:
+            letter_grade = "D"
+        elif grade >= 59.5:
+            letter_grade = "D-"
+        else:
+            letter_grade = "E"
+
+        return letter_grade
+
 
 class Message:
 
@@ -223,9 +258,9 @@ class Message:
 
         self.text = ""
 
-    def constructMessage(self, classes: list, name: str):
+    def constructMessage(self, classes: list, name: str) -> None:
 
-        self.text += "Your grades have been updated " + name + "! \n \n"
+        self.text += "Your grades have been updated " + name + "! \n \n \n"
 
         for course in classes:
             for assignment in course.message:
@@ -233,7 +268,8 @@ class Message:
                     if self.classNamesInMessage(classes):
                         self.text += "\n \n \n"
 
-                    self.text += course.name + " (" + str(course.old_grade) + " to " + str(course.grade) + "): \n"
+                    self.text += course.name + " (" + str(course.old_grade) + " to " + str(course.grade)
+                    self.text += "[" + course.letterGrade() + "]" + "): \n"
 
                 self.text += "\n" + assignment.name + ": " + assignment.score
 
@@ -251,9 +287,7 @@ class Message:
         return False
 
     # Connects to SMTP server and sends email
-    def sendEmail(self, message: str, email: str, subject: str):
-
-        #print(message)
+    def sendEmail(self, message: str, email: str, subject: str) -> None:
 
         #print(psutil.cpu_percent())
         #print(psutil.virtual_memory())
