@@ -7,6 +7,70 @@ from constants import *
 import ujson
 
 
+class Student:
+
+    def __init__(self, username: str, password: str, email: str, name="a"):
+
+        self.name = name
+        self.username = username
+        self.password = password
+        self.email = email
+        self.classes = []
+        self.session = Session()
+        self.message = Message()
+
+    # Login to StudentVue
+    def login(self):
+
+        values = {
+            "username": self.username,
+            "password": self.password,
+            "__VIEWSTATE": "8zl4rfZJu73lQNzZuzIQfbXWACbqd1Gxh4dCbaxYzbLaEeHXbHPnU7pV1nJkiArzMfoWZbBj5vYumsTk7CeB2h3Rx"
+                             "qD0Wf+EshHfAyEMsAc=",
+            "__EVENTVALIDATION": "CCnv9LCyDAgLVe7TQ6jAXKtZ1xxhQK45jSShNcakKFOtuSj65EXeeocmg8ROTZPENZgWuw7FH8kyTTOv85Z"
+                                 "SHeqzZGlYj7xN2Z3WH3SMNsoTj4bICFDj/DctKsjyhSuBhmIYfrJXR6sjf1Rn4vyMqlZ5T0EbL2AqFefiad"
+                                 "AYV3U="
+        }
+
+        self.session.post(URL, data=values)
+
+    # Used for new students: get the names and links of all classes
+    def getClasses(self):
+
+        page = self.session.get("https://rcsvue.rochester.k12.mi.us/PXP_Gradebook.aspx?AGU=0")
+        soup = BeautifulSoup(str(page.content), features="html.parser")
+        rows = soup.find_all("tr", {"class": ["altrow1", "altrow2"]})
+
+        '''Each class has a blocks of links that describe each of its columns. All of the <a> tags are found
+           in each row, and the second <a> tag contains all of the useful information.'''
+        for link_block in rows:
+
+            a_tag_list = link_block.find_all("a")
+            name = a_tag_list[1].string
+
+            # Added because Jazz Band would get cut off since it didn't have S2 in it
+            if "S1" in name or "S2" in name:
+                name = a_tag_list[1].string[:-12]
+            else:
+                name = a_tag_list[1].string[:-8]
+
+            link = a_tag_list[1]["href"]
+            self.classes.append(Class(name, link))
+
+    # Update all grades for student
+    def updateAssignments(self):
+
+        for course in self.classes:
+            course.getAssignments(self.session)
+
+    def constructMessage(self):
+
+        self.message.constructMessage(self.classes)
+
+    def sendEmail(self, message: str, subject="Grade Update"):
+
+        self.message.sendEmail(message, self.email, subject)
+
 class Assignment:
 
     def __init__(self, name: str, score: tuple, graded: bool):
@@ -165,71 +229,6 @@ class Class:
         self.old_grade = self.grade
         self.grade = string[string.find("("):string.find(")") + 1]
         self.grade = self.grade.replace("(", "").replace(")", "")
-
-
-class Student:
-
-    def __init__(self, username: str, password: str, email: str, name="a"):
-
-        self.name = name
-        self.username = username
-        self.password = password
-        self.email = email
-        self.classes = []
-        self.session = Session()
-        self.message = Message()
-
-    # Login to StudentVue
-    def login(self):
-
-        values = {
-            "username": self.username,
-            "password": self.password,
-            "__VIEWSTATE": "8zl4rfZJu73lQNzZuzIQfbXWACbqd1Gxh4dCbaxYzbLaEeHXbHPnU7pV1nJkiArzMfoWZbBj5vYumsTk7CeB2h3Rx"
-                             "qD0Wf+EshHfAyEMsAc=",
-            "__EVENTVALIDATION": "CCnv9LCyDAgLVe7TQ6jAXKtZ1xxhQK45jSShNcakKFOtuSj65EXeeocmg8ROTZPENZgWuw7FH8kyTTOv85Z"
-                                 "SHeqzZGlYj7xN2Z3WH3SMNsoTj4bICFDj/DctKsjyhSuBhmIYfrJXR6sjf1Rn4vyMqlZ5T0EbL2AqFefiad"
-                                 "AYV3U="
-        }
-
-        self.session.post(URL, data=values)
-
-    # Used for new students: get the names and links of all classes
-    def getClasses(self):
-
-        page = self.session.get("https://rcsvue.rochester.k12.mi.us/PXP_Gradebook.aspx?AGU=0")
-        soup = BeautifulSoup(str(page.content), features="html.parser")
-        rows = soup.find_all("tr", {"class": ["altrow1", "altrow2"]})
-
-        '''Each class has a blocks of links that describe each of its columns. All of the <a> tags are found
-           in each row, and the second <a> tag contains all of the useful information.'''
-        for link_block in rows:
-
-            a_tag_list = link_block.find_all("a")
-            name = a_tag_list[1].string
-
-            # Added because Jazz Band would get cut off since it didn't have S2 in it
-            if "S1" in name or "S2" in name:
-                name = a_tag_list[1].string[:-12]
-            else:
-                name = a_tag_list[1].string[:-8]
-
-            link = a_tag_list[1]["href"]
-            self.classes.append(Class(name, link))
-
-    # Update all grades for student
-    def updateAssignments(self):
-
-        for course in self.classes:
-            course.getAssignments(self.session)
-
-    def constructMessage(self):
-
-        self.message.constructMessage(self.classes)
-
-    def sendEmail(self, message: str, subject="Grade Update"):
-
-        self.message.sendEmail(message, self.email, subject)
 
 
 class Message:
