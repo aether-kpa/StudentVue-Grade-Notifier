@@ -9,13 +9,13 @@ import ujson
 
 class Student:
 
-    def __init__(self, username: str, password: str, email: str, name="a"):
+    def __init__(self, username: str, password: str, email: str, name="placeholder", classes=[]):
 
         self.name = name
         self.username = username
         self.password = password
         self.email = email
-        self.classes = []
+        self.classes = classes
         self.session = Session()
         self.message = Message()
 
@@ -33,6 +33,10 @@ class Student:
         }
 
         self.session.post(URL, data=values)
+
+    # Get student's name
+    def getName(self):
+        pass
 
     # Used for new students: get the names and links of all classes
     def getClasses(self):
@@ -65,7 +69,7 @@ class Student:
 
     def constructMessage(self):
 
-        self.message.constructMessage(self.classes)
+        self.message.constructMessage(self.classes, self.name)
 
     def sendEmail(self, message: str, subject="Grade Update"):
 
@@ -101,7 +105,7 @@ class Assignment:
 
 class Class:
 
-    def __init__(self, name: str, url: str):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", ):
 
         self.name = name
         self.url = url
@@ -237,9 +241,9 @@ class Message:
 
         self.text = ""
 
-    def constructMessage(self, classes: list):
+    def constructMessage(self, classes: list, name: str):
 
-        self.text += "Your grades have been updated Karan Arora! \n \n"
+        self.text += "Your grades have been updated " + name + "! \n \n"
 
         for course in classes:
             for assignment in course.message:
@@ -251,8 +255,10 @@ class Message:
 
                 self.text += "\n" + assignment.name + ": " + assignment.score
 
-                if assignment.percentage != "":
-                    self.text += " (" + assignment.percentage + "%)"
+                percent = assignment.calculatePercent()
+
+                if percent != "":
+                    self.text += " (" + percent + "%)"
 
     # Checks if any class names are in the message for formatting purposes
     def classNamesInMessage(self, classes: list) -> bool:
