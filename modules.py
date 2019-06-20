@@ -77,28 +77,25 @@ class Student:
 
 class Assignment:
 
-    def __init__(self, name: str, score: tuple, graded: bool):
+    def __init__(self, name: str, score: tuple):
 
         self.name = name
         self.score = score
-        self.graded = graded
-        self.percentage = self.calculatePercent()
 
     def calculatePercent(self) -> str:
 
         percentage = ""
 
-        if self.graded:
-            numerator = float(self.score.split("/")[0])
-            denominator = float(self.score.split("/")[1])
+        numerator = float(self.score.split("/")[0])
+        denominator = float(self.score.split("/")[1])
 
-            if denominator == 0:
-                self.score = "+" + str(numerator) + " (EC)"
-                percentage = ""
-            else:
-                percentage = str((numerator/denominator) * 100)
+        if denominator == 0:
+            self.score = "+" + str(numerator) + " (EC)"
+            percentage = ""
+        else:
+            percentage = str((numerator/denominator) * 100)
 
-            percentage = percentage[0:6]
+        percentage = percentage[0:6]
 
         return percentage
 
@@ -175,14 +172,12 @@ class Class:
                 if "Possible" in points:
                     graded = False
 
-            assignment = Assignment(name, points, graded)
+            assignment = Assignment(name, points)
 
-            # If the assignment is new, add it to the list of things being returned
-            if self.newAssignment(assignment):
+            # If the assignment is new, add it to the message and the list of things that have been graded
+            if not self.assignmentNameInList(assignment) and graded:
                 self.message.append(assignment)
-
-            # Add assignment to own list no matter what
-            self.assignments.append(assignment)
+                self.assignments.append(assignment)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
@@ -196,27 +191,6 @@ class Class:
 
         return False
 
-    # Check if assignment is ungraded in data but graded in new check
-    def differentGradedStatus(self, assignment: Assignment) -> bool:
-
-        for homework in self.assignments:
-            if assignment.name == homework.name:
-                if assignment.graded != homework.graded:
-                    return True
-
-        return False
-
-    # Combine previous two methods to determine if message should be constructed to email student
-    def newAssignment(self, assignment: Assignment) -> bool:
-
-        if not self.assignmentNameInList(assignment):
-            if assignment.graded:
-                return True
-
-        elif self.differentGradedStatus(assignment):
-            return True
-
-        return False
 
     # Update overall class grade of student
     def updateOverallGrade(self, html: BeautifulSoup, multiple: int):
