@@ -9,13 +9,13 @@ import ujson
 
 class Student:
 
-    def __init__(self, username: str, password: str, email: str, name="a"):
+    def __init__(self, username: str, password: str, email: str, name="placeholder", classes=[]):
 
         self.name = name
         self.username = username
         self.password = password
         self.email = email
-        self.classes = []
+        self.classes = classes
         self.session = Session()
         self.message = Message()
 
@@ -33,6 +33,10 @@ class Student:
         }
 
         self.session.post(URL, data=values)
+
+    # Get student's name
+    def getName(self):
+        pass
 
     # Used for new students: get the names and links of all classes
     def getClasses(self):
@@ -65,7 +69,7 @@ class Student:
 
     def constructMessage(self):
 
-        self.message.constructMessage(self.classes)
+        self.message.constructMessage(self.classes, self.name)
 
     def sendEmail(self, message: str, subject="Grade Update"):
 
@@ -73,35 +77,32 @@ class Student:
 
 class Assignment:
 
-    def __init__(self, name: str, score: tuple, graded: bool):
+    def __init__(self, name: str, score: tuple):
 
         self.name = name
         self.score = score
-        self.graded = graded
-        self.percentage = self.calculatePercent()
 
     def calculatePercent(self) -> str:
 
         percentage = ""
 
-        if self.graded:
-            numerator = float(self.score.split("/")[0])
-            denominator = float(self.score.split("/")[1])
+        numerator = float(self.score.split("/")[0])
+        denominator = float(self.score.split("/")[1])
 
-            if denominator == 0:
-                self.score = "+" + str(numerator) + " (EC)"
-                percentage = ""
-            else:
-                percentage = str((numerator/denominator) * 100)
+        if denominator == 0:
+            self.score = "+" + str(numerator) + " (EC)"
+            percentage = ""
+        else:
+            percentage = str((numerator/denominator) * 100)
 
-            percentage = percentage[0:6]
+        percentage = percentage[0:6]
 
         return percentage
 
 
 class Class:
 
-    def __init__(self, name: str, url: str):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", ):
 
         self.name = name
         self.url = url
@@ -171,14 +172,12 @@ class Class:
                 if "Possible" in points:
                     graded = False
 
-            assignment = Assignment(name, points, graded)
+            assignment = Assignment(name, points)
 
-            # If the assignment is new, add it to the list of things being returned
-            if self.newAssignment(assignment):
+            # If the assignment is new, add it to the message and the list of things that have been graded
+            if not self.assignmentNameInList(assignment) and graded:
                 self.message.append(assignment)
-
-            # Add assignment to own list no matter what
-            self.assignments.append(assignment)
+                self.assignments.append(assignment)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
@@ -192,27 +191,6 @@ class Class:
 
         return False
 
-    # Check if assignment is ungraded in data but graded in new check
-    def differentGradedStatus(self, assignment: Assignment) -> bool:
-
-        for homework in self.assignments:
-            if assignment.name == homework.name:
-                if assignment.graded != homework.graded:
-                    return True
-
-        return False
-
-    # Combine previous two methods to determine if message should be constructed to email student
-    def newAssignment(self, assignment: Assignment) -> bool:
-
-        if not self.assignmentNameInList(assignment):
-            if assignment.graded:
-                return True
-
-        elif self.differentGradedStatus(assignment):
-            return True
-
-        return False
 
     # Update overall class grade of student
     def updateOverallGrade(self, html: BeautifulSoup, multiple: int):
@@ -237,9 +215,9 @@ class Message:
 
         self.text = ""
 
-    def constructMessage(self, classes: list):
+    def constructMessage(self, classes: list, name: str):
 
-        self.text += "Your grades have been updated Karan Arora! \n \n"
+        self.text += "Your grades have been updated " + name + "! \n \n"
 
         for course in classes:
             for assignment in course.message:
@@ -251,8 +229,10 @@ class Message:
 
                 self.text += "\n" + assignment.name + ": " + assignment.score
 
-                if assignment.percentage != "":
-                    self.text += " (" + assignment.percentage + "%)"
+                percent = assignment.calculatePercent()
+
+                if percent != "":
+                    self.text += " (" + percent + "%)"
 
     # Checks if any class names are in the message for formatting purposes
     def classNamesInMessage(self, classes: list) -> bool:
