@@ -3,8 +3,8 @@ from requests import Session
 from bs4 import BeautifulSoup, ResultSet
 from smtplib import SMTP
 from constants import *
-#import psutil
 import ujson
+#import psutil
 
 
 class Student:
@@ -39,7 +39,8 @@ class Student:
         page = self.session.post(self.url + "Login_Student_PXP.aspx", data=values)
         soup = BeautifulSoup(str(page.content), features="html.parser")
 
-        if len(soup.find_all("td", {"class": "ERROR"})) > 0:
+        # Return success of login
+        if len(soup.find_all("span", {"class": "ERROR"})) > 0:
             return False
 
         return True
@@ -82,6 +83,7 @@ class Student:
     def updateAssignments(self) -> None:
 
         for course in self.classes:
+            print(course)
             course.getAssignments(self.session, self.url)
 
     def constructMessage(self) -> None:
@@ -93,41 +95,16 @@ class Student:
         self.message.sendEmail(message, self.email, subject)
 
 
-class Assignment:
-
-    def __init__(self, name: str, score: tuple):
-
-        self.name = name
-        self.score = score
-
-    def calculatePercent(self) -> str:
-
-        percentage = ""
-
-        numerator = float(self.score.split("/")[0])
-        denominator = float(self.score.split("/")[1])
-
-        if denominator == 0:
-            self.score = "+" + str(numerator) + " (EC)"
-            percentage = ""
-        else:
-            percentage = str((numerator/denominator) * 100)
-
-        percentage = percentage[0:6]
-
-        return percentage
-
-
 class Class:
 
-    def __init__(self, name: str, url: str, grade="0%", old_grade="0%"):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", assignments=[]):
 
         self.name = name
         self.url = url
         self.grade = grade
         self.old_grade = old_grade
-        self.assignments = []
-        self.message = []
+        self.assignments = assignments
+        self.message = {}
 
     # Removes extra altrows due to some classes weighing homework and tests differently
     @staticmethod
@@ -190,25 +167,40 @@ class Class:
                 if "Possible" in points:
                     graded = False
 
-            assignment = Assignment(name, points)
-
             # If the assignment is new, add it to the message and the list of things that have been graded
-            if not self.assignmentNameInList(assignment) and graded:
-                self.message.append(assignment)
-                self.assignments.append(assignment)
+            if not self.assignmentNameInList(name) and graded:
+                self.message[name] = points
+                self.assignments.append(name)
+
+            print(self.assignments)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
 
     # Check if assignment's name already exists in data
-    def assignmentNameInList(self, assignment: Assignment) -> bool:
+    def assignmentNameInList(self, name: str) -> bool:
 
         for homework in self.assignments:
-            if assignment.name == homework.name:
+            if name == homework:
                 return True
 
         return False
 
+    # Calculate percent of score and also fix score string if needed
+    def calculatePercent(self, score: tuple) -> tuple:
+
+        numerator = float(score.split("/")[0])
+        denominator = float(score.split("/")[1])
+
+        if denominator == 0:
+            score = "+" + str(numerator) + " (EC)"
+            percentage = ""
+        else:
+            percentage = str((numerator/denominator) * 100)
+
+        percentage = percentage[0:6]
+
+        return percentage, score
 
     # Update overall class grade of student
     def updateOverallGrade(self, html: BeautifulSoup, multiple: int) -> None:
@@ -269,7 +261,7 @@ class Message:
         self.text += "Your grades have been updated " + name + "! \n \n \n"
 
         for course in classes:
-            for assignment in course.message:
+            for assignment_name, score in course.message.items():
                 if course.name not in self.text:
                     if self.classNamesInMessage(classes):
                         self.text += "\n \n \n"
@@ -277,9 +269,9 @@ class Message:
                     self.text += course.name + " (" + str(course.old_grade) + " to " + str(course.grade)
                     self.text += "[" + course.letterGrade() + "]" + "): \n"
 
-                self.text += "\n" + assignment.name + ": " + assignment.score
+                percent, score = course.calculatePercent(score)
 
-                percent = assignment.calculatePercent()
+                self.text += "\n" + assignment_name + ": " + score
 
                 if percent != "":
                     self.text += " (" + percent + "%)"
@@ -309,3 +301,54 @@ class Message:
 
         server.sendmail(SENDER_USERNAME, email, message)
         server.quit()
+
+
+# Convert objects to JSON and store them in file
+def serialize(student) -> None:
+
+    data = {
+            student.username:
+                {
+                    "name": student.name,
+                    "password": student.password,
+                    "email": student.email,
+                    "url": student.url,
+                    "classes":
+
+                        {
+
+                        }
+                }
+            }
+
+    for course in student.classes:
+        data[student.username]["classes"].update(
+            {
+                course.name:
+                    {
+                        "url": course.url,
+                        "grade": course.grade,
+                        "old_grade": course.old_grade,
+                        "assignments":
+
+                            [
+
+                            ]
+                    }
+            }
+        )
+
+        for assignment in course.assignments:
+            data[student.username]["classes"][course.name]["assignments"].append(assignment)
+
+    with open("data.json", "r") as file:
+        json = ujson.load(file)
+        json.update(data)
+
+    with open("data.json", "w") as file:
+        ujson.dump(json, file, indent=4)
+
+
+# Read JSON from file and turn data into objects
+def unserialize():
+    pass
