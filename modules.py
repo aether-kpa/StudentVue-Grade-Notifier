@@ -24,7 +24,7 @@ class Student:
         self.message = Message()
 
     # Login to StudentVue
-    def login(self) -> None:
+    def login(self) -> bool:
 
         values = {
             "username": self.username,
@@ -36,7 +36,13 @@ class Student:
                                  "AYV3U="
         }
 
-        self.session.post(self.url + "Login_Student_PXP.aspx", data=values)
+        page = self.session.post(self.url + "Login_Student_PXP.aspx", data=values)
+        soup = BeautifulSoup(str(page.content), features="html.parser")
+
+        if len(soup.find_all("td", {"class": "ERROR"})) > 0:
+            return False
+
+        return True
 
     # Get student's name
     def getName(self) -> None:

@@ -2,11 +2,20 @@
 import constants
 from modules import *
 
-def main():
+
+def main() -> None:
+
+    #inputs
+
+    #while constants.VUE_USERNAME == "":
+     #   input("fix")
 
     student = Student(constants.VUE_USERNAME, constants.VUE_PASSWORD, constants.NOTIFICATION_USERNAME, URL)
 
-    student.login()
+    if not student.login():
+        print("Username or password is incorrect")
+        return
+
     student.getName()
     student.getClasses()
     student.updateAssignments()
@@ -14,7 +23,8 @@ def main():
     student.sendEmail(student.message.text)
     print(student.__dict__)
 
-    #Thanks for joining email
+    #student.sendEmail("Thanks for joining the StudentVue Grade Notifier! \n \n - Karan Arora",
+                      #"Subscribed to Grade Updates")
 
 
 main()
