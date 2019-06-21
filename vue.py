@@ -92,18 +92,18 @@ class Student:
 
     def sendEmail(self, message: str, subject="Grade Update") -> None:
 
-        self.message.sendEmail(message, self.email, subject)
+        Message.sendEmail(message, self.email, subject)
 
 
 class Class:
 
-    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", assignments=[]):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", graded_assignments=[]):
 
         self.name = name
         self.url = url
         self.grade = grade
         self.old_grade = old_grade
-        self.assignments = assignments
+        self.graded_assignments = graded_assignments
         self.message = {}
 
     # Removes extra altrows due to some classes weighing homework and tests differently
@@ -139,55 +139,47 @@ class Class:
         rows = html.find_all("tr", {"class": ["altrow1", "altrow2"]})
 
         # Remove extra altrows
-        rows, multiple = self.alternateRowRemover(rows)
+        rows, multiple = Class.alternateRowRemover(rows)
 
         # If there are no assignments posted go to the next class
         if "There are no assignments" in str(rows[0]):
             self.grade = 0.0
             return
 
+        print(self.name)
         # Grabs the name and point value from each grade block
         for grade_block in rows:
             a_tag_list = grade_block.find_all("a")
 
             name = a_tag_list[1].string
-            points = a_tag_list[6].string
+            score = a_tag_list[6].string
 
             # Mark assignment ungraded if it has the word "possible" in it
             graded = True
 
             # Added try statement because if score box is left blank that shifts the number of <a> tags to the left one
             try:
-                if "Possible" in points:
+                if "Possible" in score:
                     graded = False
 
             except TypeError:
-                points = a_tag_list[5].string
+                score = a_tag_list[5].string
 
-                if "Possible" in points:
+                if "Possible" in score:
                     graded = False
 
             # If the assignment is new, add it to the message and the list of things that have been graded
-            if not self.assignmentNameInList(name) and graded:
-                self.message[name] = points
-                self.assignments.append(name)
+            if name not in self.graded_assignments and graded:
+                self.message[name] = score
+                self.graded_assignments.append(name)
 
-            print(self.assignments)
+            print(self.graded_assignments)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
 
-    # Check if assignment's name already exists in data
-    def assignmentNameInList(self, name: str) -> bool:
-
-        for homework in self.assignments:
-            if name == homework:
-                return True
-
-        return False
-
     # Calculate percent of score and also fix score string if needed
-    def calculatePercent(self, score: tuple) -> tuple:
+    def calculatePercent(self, score: str) -> tuple:
 
         numerator = float(score.split("/")[0])
         denominator = float(score.split("/")[1])
@@ -221,7 +213,6 @@ class Class:
     # Find letter grade in class
     def letterGrade(self) -> str:
 
-        letter_grade = ""
         grade = float(self.grade.replace("%", ""))
 
         if grade >= 92.5:
@@ -285,7 +276,8 @@ class Message:
         return False
 
     # Connects to SMTP server and sends email
-    def sendEmail(self, message: str, email: str, subject: str) -> None:
+    @staticmethod
+    def sendEmail(message: str, email: str, subject: str) -> None:
 
         #print(psutil.cpu_percent())
         #print(psutil.virtual_memory())
@@ -306,6 +298,7 @@ class Message:
 # Convert objects to JSON and store them in file
 def serialize(student) -> None:
 
+    # Update student information
     data = {
             student.username:
                 {
@@ -313,14 +306,11 @@ def serialize(student) -> None:
                     "password": student.password,
                     "email": student.email,
                     "url": student.url,
-                    "classes":
-
-                        {
-
-                        }
+                    "classes": {}
                 }
             }
 
+    # Update class information
     for course in student.classes:
         data[student.username]["classes"].update(
             {
@@ -329,18 +319,16 @@ def serialize(student) -> None:
                         "url": course.url,
                         "grade": course.grade,
                         "old_grade": course.old_grade,
-                        "assignments":
-
-                            [
-
-                            ]
+                        "graded_assignments": []
                     }
             }
         )
 
+        # Update assignment information
         for assignment in course.assignments:
-            data[student.username]["classes"][course.name]["assignments"].append(assignment)
+            data[student.username]["classes"][course.name]["graded_assignments"].append(assignment)
 
+    # Update data in file and write to it
     with open("data.json", "r") as file:
         json = ujson.load(file)
         json.update(data)

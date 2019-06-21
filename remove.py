@@ -13,7 +13,6 @@ def main():
         if username in json.keys():
             if json[username]["password"] == password:
                 json.pop(username)
-
         else:
             print("The username or password entered is incorrect.")
 
