@@ -16,7 +16,7 @@ class Student:
         self.username = username
         self.password = password
         self.email = email
-        self.url = url[:url.find("Login")]
+        self.url = url
         self.name = name
         self.classes = classes
 
@@ -37,9 +37,10 @@ class Student:
         }
 
         page = self.session.post(self.url + "Login_Student_PXP.aspx", data=values)
-        soup = BeautifulSoup(str(page.content), features="html.parser")
 
         # Return success of login
+        soup = BeautifulSoup(str(page.content), features="html.parser")
+
         if len(soup.find_all("span", {"class": "ERROR"})) > 0:
             return False
 
@@ -86,10 +87,12 @@ class Student:
             print(course)
             course.getAssignments(self.session, self.url)
 
+    # Tells message object to create the email
     def constructMessage(self) -> None:
 
         self.message.constructMessage(self.classes, self.name)
 
+    # Sends email with message specified in arguments
     def sendEmail(self, message: str, subject="Grade Update") -> None:
 
         Message.sendEmail(message, self.email, subject)
@@ -104,6 +107,8 @@ class Class:
         self.grade = grade
         self.old_grade = old_grade
         self.graded_assignments = graded_assignments
+
+        # Contains new data that the student needs to be updated about
         self.message = {}
 
     # Removes extra altrows due to some classes weighing homework and tests differently
@@ -197,7 +202,7 @@ class Class:
     # Update overall class grade of student
     def updateOverallGrade(self, html: BeautifulSoup, multiple: int) -> None:
 
-        # Finds letter grade in class
+        # Find grade in class
         rows = html.find_all("tr", {"class": "row_subhdr"})
 
         # If class has extra altrows remove those
@@ -247,11 +252,14 @@ class Message:
 
         self.text = ""
 
+    # Creates email with message data from each class
     def constructMessage(self, classes: list, name: str) -> None:
 
         self.text += "Your grades have been updated " + name + "! \n \n \n"
 
         for course in classes:
+
+            # Get new info from each class
             for assignment_name, score in course.message.items():
                 if course.name not in self.text:
                     if self.classNamesInMessage(classes):
@@ -295,8 +303,10 @@ class Message:
         server.quit()
 
 
-# Convert objects to JSON and store them in file
-def serialize(student) -> None:
+'''Convert objects to JSON and store them in file - could make a different serialize function for storing new user data
+   (when someone signs up) versus storing old user data (updater.py) but I decided that wasn't necessary, despite the
+   slight efficiency gains.'''
+def serialize(student: Student) -> None:
 
     # Update student information
     data = {
@@ -325,7 +335,7 @@ def serialize(student) -> None:
         )
 
         # Update assignment information
-        for assignment in course.assignments:
+        for assignment in course.graded_assignments:
             data[student.username]["classes"][course.name]["graded_assignments"].append(assignment)
 
     # Update data in file and write to it
