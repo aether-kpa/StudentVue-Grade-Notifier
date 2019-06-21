@@ -1,6 +1,6 @@
 
 import constants
-from modules import *
+from vue import *
 
 
 def main() -> None:
@@ -20,8 +20,9 @@ def main() -> None:
     student.getClasses()
     student.updateAssignments()
     student.constructMessage()
-    student.sendEmail(student.message.text)
-    print(student.__dict__)
+    #student.sendEmail(student.message.text)
+    serialize(student)
+
 
     #student.sendEmail("Thanks for joining the StudentVue Grade Notifier! \n \n - Karan Arora",
                       #"Subscribed to Grade Updates")
