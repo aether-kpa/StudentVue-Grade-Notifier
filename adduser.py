@@ -21,11 +21,10 @@ def main() -> None:
     student.getClasses()
     student.updateAssignments()
     student.constructMessage()
-    #student.sendEmail(student.message.text)
     serialize(student)
 
-    #student.sendEmail("Thanks for joining the StudentVue Grade Notifier! \n \n - Karan Arora",
-                      #"Subscribed to Grade Updates")
+    student.sendEmail("Thanks for joining the StudentVue Grade Notifier! \n \n Karan Arora",
+                      "You Subscribed to Grade Updates")
 
 
 main()

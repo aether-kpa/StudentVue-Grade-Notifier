@@ -4,21 +4,25 @@ from bs4 import BeautifulSoup, ResultSet
 from smtplib import SMTP
 from constants import *
 import ujson
-#import psutil
 
 
 class Student:
 
     '''Default values for some arguments are included because they are updated by the object when a new user is created,
        but then filled in during the deserialization process.'''
-    def __init__(self, username: str, password: str, email: str, url: str, name="placeholder", classes=[]):
+    def __init__(self, username: str, password: str, email: str, url: str, name="placeholder", classes=None):
 
         self.username = username
         self.password = password
         self.email = email
         self.url = url
         self.name = name
-        self.classes = classes
+
+        # Avoid argument default value being mutable
+        if classes is None:
+            self.classes = []
+        else:
+            self.classes = classes
 
         self.session = Session()
         self.message = Message()
@@ -84,13 +88,14 @@ class Student:
     def updateAssignments(self) -> None:
 
         for course in self.classes:
-            print(course)
             course.getAssignments(self.session, self.url)
 
     # Tells message object to create the email
-    def constructMessage(self) -> None:
+    def constructMessage(self) -> bool:
 
-        self.message.constructMessage(self.classes, self.name)
+        update = self.message.constructMessage(self.classes, self.name)
+
+        return update
 
     # Sends email with message specified in arguments
     def sendEmail(self, message: str, subject="Grade Update") -> None:
@@ -100,13 +105,18 @@ class Student:
 
 class Class:
 
-    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", graded_assignments=[]):
+    def __init__(self, name: str, url: str, grade="0%", old_grade="0%", graded_assignments=None):
 
         self.name = name
         self.url = url
         self.grade = grade
         self.old_grade = old_grade
-        self.graded_assignments = graded_assignments
+
+        # Avoid argument default value being mutable
+        if graded_assignments is None:
+            self.graded_assignments = []
+        else:
+            self.graded_assignments = graded_assignments
 
         # Contains new data that the student needs to be updated about
         self.message = {}
@@ -151,7 +161,6 @@ class Class:
             self.grade = 0.0
             return
 
-        print(self.name)
         # Grabs the name and point value from each grade block
         for grade_block in rows:
             a_tag_list = grade_block.find_all("a")
@@ -177,8 +186,6 @@ class Class:
             if name not in self.graded_assignments and graded:
                 self.message[name] = score
                 self.graded_assignments.append(name)
-
-            print(self.graded_assignments)
 
         # Update overall grade
         self.updateOverallGrade(html, multiple)
@@ -253,7 +260,7 @@ class Message:
         self.text = ""
 
     # Creates email with message data from each class
-    def constructMessage(self, classes: list, name: str) -> None:
+    def constructMessage(self, classes: list, name: str) -> bool:
 
         self.text += "Your grades have been updated " + name + "! \n \n \n"
 
@@ -275,6 +282,11 @@ class Message:
                 if percent != "":
                     self.text += " (" + percent + "%)"
 
+        if self.text == "Your grades have been updated " + name + "! \n \n \n":
+            return False
+
+        return True
+
     # Checks if any class names are in the message for formatting purposes
     def classNamesInMessage(self, classes: list) -> bool:
 
@@ -286,9 +298,6 @@ class Message:
     # Connects to SMTP server and sends email
     @staticmethod
     def sendEmail(message: str, email: str, subject: str) -> None:
-
-        #print(psutil.cpu_percent())
-        #print(psutil.virtual_memory())
 
         server = SMTP("smtp.gmail.com", 587)
         server.connect("smtp.gmail.com", 587)
@@ -305,7 +314,8 @@ class Message:
 
 '''Convert objects to JSON and store them in file - could make a different serialize function for storing new user data
    (when someone signs up) versus storing old user data (updater.py) but I decided that wasn't necessary, despite the
-   slight efficiency gains.'''
+   slight efficiency gains. Right now I'm overwriting all of the dict even if it contains the same data, whereas I 
+   could be checking for new data and only updating that.'''
 def serialize(student: Student) -> None:
 
     # Update student information
@@ -348,5 +358,11 @@ def serialize(student: Student) -> None:
 
 
 # Read JSON from file and turn data into objects
-def unserialize():
-    pass
+def unserialize(username: str, data: dict) -> Student:
+
+    classes = []
+
+    for course, info in data["classes"].items():
+        classes.append(Class(course, info["url"], info["grade"], info["old_grade"], info["graded_assignments"]))
+
+    return Student(username, data["password"], data["email"], data["url"], data["name"], classes)

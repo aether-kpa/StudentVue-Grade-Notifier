@@ -2,7 +2,7 @@
 import ujson
 
 
-def main():
+def main() -> None:
 
     username = input("Enter the username of the StudentVue account you would like to remove: ")
     password = input("Enter the password of the StudentVue account: ")
